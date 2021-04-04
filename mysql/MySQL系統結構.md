@@ -57,4 +57,4 @@ InnoDB:<br>
 * .ibd: 專放InnoDB獨享表資料<br>
 * .ibdata: 專放InnoDB共享表資料<br>
 
-ibdata 與 iba 的差異: 兩種檔案都是存放innoDB資料, 因為innoDB可藉由設定決定使用"共享表空間" or "獨享表空間". 獨享表空間儲存方式使用.ibd檔案，並且每個表一個ibd檔案。共享表空間儲存方式採用.ibdata檔案，所有的表共同使用一個ibdata檔案，即所有的資料檔案都存在一個檔案中。決定使用哪種表的儲存方式可以通過mysql的配置檔案中 innodb_file_per_table選項來指定。InnoDB預設使用的是獨享表的儲存方式，<font color='red'>這種方式的好處是當資料庫產生大量檔案碎片的時，整理磁碟碎片對線上執行環境的影響較小。</font>
+ibdata 與 iba 的差異: 兩種檔案都是存放innoDB資料, 因為innoDB可藉由設定決定使用[共享表空間](./表空間.md) or [獨享表空間](./表空間.md). 獨享表空間儲存方式使用.ibd檔案，並且每個表一個ibd檔案。共享表空間儲存方式採用.ibdata檔案，所有的表共同使用一個ibdata檔案，即所有的資料檔案都存在一個檔案中。決定使用哪種表的儲存方式可以通過mysql的配置檔案中 innodb_file_per_table選項來指定。InnoDB預設使用的是獨享表的儲存方式，<font color='red'>這種方式的好處是當資料庫產生大量檔案碎片的時，整理磁碟碎片對線上執行環境的影響較小。</font>
