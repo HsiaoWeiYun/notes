@@ -51,8 +51,21 @@ ps. 試想, 若DB當機了恢復時只能再次從硬碟讀取資料到buffer中
 
 * binlog_format: binlog格式, statement、row、mixed 三種. 生產用row更安全, 不會出現主從丟數據的情況. <br><br>
 
-* lower_case_table_names: table name 是否區分大小寫, 預設為0, 0代表區分大小寫, 1代表不區分以小寫儲存. <br>
-待續 ...
+* lower_case_table_names: table name 是否區分大小寫, 預設為0, 0代表區分大小寫, 1代表不區分以小寫儲存. <br><br>
+
+* innodb_fast_shutdown: 該參數引響innoDB關閉時的行為, 有 0 (預設)、1、2 三種. <br>
+0: 代表innoDB關閉時需要執行purge all、merge change buffer、flush dirty page. 是當中最慢的一種, 但restart時是最快的. <br>
+1: 代表innoDB關閉時不需要執行purge all、merge insert buffer 等操作, 只需執行flush dirty page. <br>
+2: 代表innoDB關閉時不需要執行上述操作, 只將log寫入, 雖不會丟失數據但是下次啟動時會執行recovery. <br><br>
+  
+* 這兩個參數建議關閉 (innodb_status_output=0、innodb_status_output_locks=0), 否則會把對DB監控的數據寫到error log 內, 使錯誤lob快速增長, 造成硬碟空間緊張. <br><br><br>
+
+
+#### 參數類型:
+1. 動態參數: MySQL在運行時可以對參數線上修改, 通過set global、set session 兩種命令. <br>
+global 代表全域參數, 修改後退出當前連線修改仍然會生效, 但是只要DB重啟修改仍然會失效. session 只是針對當前連線做修改, 退出後修改就會失效. <br>
+2. 靜態參數: 無法在線修改的參數, 若嘗試修改會報出read only variable的錯誤. <br>
+
 
 
 
