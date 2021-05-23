@@ -58,9 +58,27 @@ ps. 試想, 若DB當機了恢復時只能再次從硬碟讀取資料到buffer中
 1: 代表innoDB關閉時不需要執行purge all、merge insert buffer 等操作, 只需執行flush dirty page. <br>
 2: 代表innoDB關閉時不需要執行上述操作, 只將log寫入, 雖不會丟失數據但是下次啟動時會執行recovery. <br><br>
   
-* 這兩個參數建議關閉 (innodb_status_output=0、innodb_status_output_locks=0), 否則會把對DB監控的數據寫到error log 內, 使錯誤lob快速增長, 造成硬碟空間緊張. <br><br><br>
+* 這兩個參數建議關閉 (innodb_status_output=0、innodb_status_output_locks=0), 否則會把對DB監控的數據寫到error log 內, 使錯誤lob快速增長, 造成硬碟空間緊張. <br><br>
+
+* explicit_defaults_for_timestamp: <br>
+  explicit_defaults_for_timestamp關閉的狀況下若創建table時未指定timestamp欄位not null, 也沒有指定default時 <br>
+  第一個欄位會被設定為 DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, <br>
+  其他timestamp欄位會被加上 DEFAULT '0000-00-00 00:00:00' (sql mode NO_ZERO_DATE 去掉的狀況下) <br>
+
+![](./img/explicit_defaults_for_timestamp0.png)
+<br><br>
+
+* explicit_defaults_for_timestamp: <br>
+  explicit_defaults_for_timestamp開啟的狀況下若創建table時未指定timestamp欄位not null, 也沒有指定default時 <br>
+  欄位均會被加上 NULL DEFAULT NULL sql mode NO_ZERO_DATE 去掉的狀況下) <br>
+
+![](./img/explicit_defaults_for_timestamp1.png)
+![](./img/explicit_defaults_for_timestamp1_insert_null.png)
+<br><br>
 
 
+
+<br><br><br>
 #### 參數類型:
 1. 動態參數: MySQL在運行時可以對參數線上修改, 通過set global、set session 兩種命令. <br>
 global 代表全域參數, 修改後退出當前連線修改仍然會生效, 但是只要DB重啟修改仍然會失效. session 只是針對當前連線做修改, 退出後修改就會失效. <br>
