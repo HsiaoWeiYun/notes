@@ -61,4 +61,83 @@ SELECT score FROM student WHERE name='叶良辰';
 ![](./img/index_s_4.png)
 因走訪完樹後只能得到id,name, 所以利用id再去叢集索引查詢score, 需要兩段這個過程稱為**回表** <br>
 
-(待補)
+* 聯合索引: 指對表上多個列進行索引 (有序), 與單個索引建立方法一樣, 不同的是有多個索引列且索引方式有順序性. 對於SQL是否用到索引有下列幾種情況. <br>
+1. 全列匹配: 當WHERE條件內的搜尋條件全部都是聯合索引內的欄位時是可以使用到索引的, 但要注意的是理論上WHERE條件內的順序要與聯合索引內的順序相同, <br>
+但是MySQL的查詢優化器會自動調整WHERE句子的順序,匹配適合使用的索引, 所以若順序不相同但效果是一樣的.
+2. 最左匹配: 如果WHERE條件使用到聯合索引的最左邊的索引, 那麼這條SQL就可以利用聯合索引匹配, 但若遇到範圍查詢則會停止. <br>
+   舉例對(a,b)字段建立索引, 也就是說WHERE為
+```text
+a=1
+a=1 and b=2
+```
+是可以使用到索引的, 但執行
+```text
+b=2
+```
+就沒辦法使用索引了. <br>
+若對(a,b,c,d)建立索引, WHERE條件為
+```text
+a=1 and b=2 and c>3 and d=4
+```
+此時a,b,c三個字段可以用到索引, d就沒辦法因為遇到了範圍查詢 <br>
+假如說索引為(a,b), 看下圖
+![](./img/index_s_8.png)
+資料是先按照a來排序的, a相等的情況下才對b排序. <br>
+```text
+a的順序為 1,1,2,2,3,3 b順序為1,2,1,4,1,2 
+可以說a是有序的, b是全局無序但局部有序, 這是什麼意思呢?
+當a決定時b是有序的. 例如a=3時b是有序的, 因此a=1 b=2 是可以用到索引的,
+而a>1 b=2只有a能用到索引,b用不到,因為a是一個範圍不是固定的所以b就無序了.
+以上述來看, 最左匹配原則, 在遇到範圍查詢後就會停止匹配.
+```
+題型:
+```text
+Q: SELECT * FROM table WHERE a = 1 and b = 2 and c = 3;
+如何建立索引?
+A: (a,b,c) (b,a,c) (c,a,b) ... 都可以, 但是重點是將區分度對高的字段放前面, 區分度低的放後面, 像性別、狀態這種就放後面
+```
+```text
+Q: SELECT * FROM table WHERE a > 1 and b = 2; 
+如何建立索引?
+A: (b,a) , 因為(a,b)的話只有a可以用到索引, (b,a) 可以兩個字段都用上索引, WHERE條件的順序沒差, MySQL會幫忙優化順序
+```
+```text
+Q: SELECT * FROM `table` WHERE a > 1 and b = 2 and c > 3; 
+如何建立索引?
+A: (b,a) or (b,c) 都行, 看具體情況分析
+```
+```text
+Q: SELECT * FROM `table` WHERE a = 1 ORDER BY b;
+如何建立索引?
+A: (a,b) , a=1的情況下b有序
+```
+```text
+Q: SELECT * FROM `table` WHERE a IN (1,2,3) and b > 1; 
+如何建立索引?
+A: (a,b) , IN可視同等值用法, 所以還是(a,b)
+```
+<br>
+3. Like %開頭: 不符合最左匹配, 無法用到索引 <br>
+4. 查詢條件含有函式或表達式無法使用索引 <br>
+
+* 覆蓋索引 (避免回表)
+如果一個索引覆蓋 (包含)了所有需要查詢的欄位, 這個索引就是覆蓋索引. <br>
+因為索引中已經包含了要查詢欄位的值 (單列索引或聯合索引), 所以就可以不用再回表了. <br>
+ex: 考慮下圖的表內涵150w筆資料.
+![](./img/index_s_5.png)
+一個簡單的SQL需要花費1秒
+  
+```text
+SELECT uid FROM group_user WHERE gid = 2 ORDER BY create_time ASC LIMIT 10;
+```
+Explain 結果是
+![](./img/index_s_6.png)
+查詢已使用到了索引, 但還是慢原因是因為排序的部分使用了Using filesort檔案排序, 查詢效能低, 再來就是因為欄位不在索引上所以還需要回表. <br>
+解決方式: 新增一個聯合索引避免回表與檔案排序
+```text
+ALTER TABLE group_user ADD INDEX idx_gid_ctime_uid(gid,create_time,uid);
+```
+再次Explain結果為
+![](./img/index_s_7.png)
+Extra資訊已有Using Index, 表示使用覆蓋索引. <br>
+
