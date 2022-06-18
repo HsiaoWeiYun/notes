@@ -183,5 +183,134 @@ $or and Sort Operations: 當使用sort()執行$or時可以使用到index, 先前
 
 $or versus $in: 假如可以, 永遠優先使用$in
 ```
+* 元素查詢運算子 - $exists
+```text
+格式: { field: { $exists: <boolean> } }
+當值為true則會查出所有存在這個字段的資料 (包含null)
+```
+[Use a Sparse Index to Improve $exists Performance (待補)](https://www.mongodb.com/docs/manual/reference/operator/query/exists/#use-a-sparse-index-to-improve--exists-performance)
 
-尚未完成....
+* 元素查詢運算子 - $type
+```text
+格式: { field: { $type: <BSON type> } } or { field: { $type: [ <BSON type1> , <BSON type2>, ... ] } }
+用於查詢字段是否屬於指定的bson type, 如果需查詢的字段是陣列則陣列元素中有至少一個符合就會被查出
+
+如下情況3.6以後的版本 (針對字段類型是array)都能查出, 但3.6前的版本(針對字段內的元素是array)只能查出第一筆
+{ "data" : [ "values", [ "values" ] ] }
+{ "data" : [ "values" ] }
+查詢條件: find( {"data" : { $type : "array" } } )
+
+4.2版本後無法將 $type: 0 作為 exists:false 的同義
+```
+$type運算子支援number 或 Alias 如下表
+![](https://github.com/HsiaoWeiYun/notes/blob/master/mongodb/img/bson_type.png?raw=true)
+
+* 陣列查訊運算子 - $all
+```text
+格式: { <field>: { $all: [ <value1> , <value2> ... ] } }
+下兩句等價:
+{ tags: { $all: [ "ssl" , "security" ] } }
+{ $and: [ { tags: "ssl" }, { tags: "security" } ] }
+```
+
+* 陣列查訊運算子 - $elemMatch
+```text
+格式: { <field>: { $elemMatch: { <query1>, <query2>, ... } } }
+此運算子會把該陣列任一元素滿足所有條件的資料找出
+ex
+    假設有資料
+    { _id: 1, results: [ 82, 85, 88 ] }
+    { _id: 2, results: [ 75, 88, 89 ] }
+    查詢語法為
+    db.scores.find({ results: { $elemMatch: { $gte: 80, $lt: 85 } } })
+    查出任一元素滿足條件在80~85之間, 回傳下列資料
+    { "_id" : 1, "results" : [ 82, 85, 88 ] }
+
+Array of Embedded Documents
+ex
+    假設有資料
+    db.survey.insertMany( [
+        { "_id": 1, "results": [ { "product": "abc", "score": 10 },
+                            { "product": "xyz", "score": 5 } ] },
+        { "_id": 2, "results": [ { "product": "abc", "score": 8 },
+                            { "product": "xyz", "score": 7 } ] },
+        { "_id": 3, "results": [ { "product": "abc", "score": 7 },
+                            { "product": "xyz", "score": 8 } ] },
+        { "_id": 4, "results": [ { "product": "abc", "score": 7 },
+                            { "product": "def", "score": 8 } ] }
+    ] )
+    查詢語法
+    db.survey.find(
+        { results: { $elemMatch: { product: "xyz", score: { $gte: 8 } } } }
+    )
+    查出資料為
+    { "_id" : 3, "results" : [ { "product" : "abc", "score" : 7 },
+                           { "product" : "xyz", "score" : 8 } ] }
+
+```
+
+* Use $all with $elemMatch
+```text
+ex
+  db.inventory.find( {
+                     qty: { $all: [
+                                    { "$elemMatch" : { size: "M", num: { $gt: 50} } },
+                                    { "$elemMatch" : { num : 100, color: "green" } }
+                                  ] }
+                   } )  
+```
+
+* Query on Embedded/Nested Documents
+```text
+ex
+    假設有下列資料
+    db.inventory.insertMany( [
+       { item: "journal", qty: 25, size: { h: 14, w: 21, uom: "cm" }, status: "A" },
+       { item: "notebook", qty: 50, size: { h: 8.5, w: 11, uom: "in" }, status: "A" },
+       { item: "paper", qty: 100, size: { h: 8.5, w: 11, uom: "in" }, status: "D" },
+       { item: "planner", qty: 75, size: { h: 22.85, w: 30, uom: "cm" }, status: "D" },
+       { item: "postcard", qty: 45, size: { h: 10, w: 15.25, uom: "cm" }, status: "A" }
+    ]);
+    Document需完全符合的狀況下 (順序無所謂)
+    db.inventory.find( { size: { h: 14, w: 21, uom: "cm" } } ) 
+                或
+    db.inventory.find(  { size: { w: 21, h: 14, uom: "cm" } }  )
+    
+    針對某嵌套字段的情況下可使用"點符號"
+    db.inventory.find( { "size.uom": "in" } )
+                或
+    db.inventory.find( { "size.h": { $lt: 15 } } )
+                或
+    db.inventory.find( { "size.h": { $lt: 15 }, "size.uom": "in", status: "D" } )
+```
+
+* 指定Query後想回傳的資料欄位 (projection)
+```text
+ex
+    假設有下列資料
+    db.inventory.insertMany( [
+      { item: "journal", status: "A", size: { h: 14, w: 21, uom: "cm" }, instock: [ { warehouse: "A", qty: 5 } ] },
+      { item: "notebook", status: "A",  size: { h: 8.5, w: 11, uom: "in" }, instock: [ { warehouse: "C", qty: 5 } ] },
+      { item: "paper", status: "D", size: { h: 8.5, w: 11, uom: "in" }, instock: [ { warehouse: "A", qty: 60 } ] },
+      { item: "planner", status: "D", size: { h: 22.85, w: 30, uom: "cm" }, instock: [ { warehouse: "A", qty: 40 } ] },
+      { item: "postcard", status: "A", size: { h: 10, w: 15.25, uom: "cm" }, instock: [ { warehouse: "B", qty: 15 }, { warehouse: "C", qty: 35 } ] }
+    ]);
+    
+    回傳所有欄位
+    db.inventory.find( { status: "A" } )
+    
+    回傳_id(預設), item, status
+    db.inventory.find( { status: "A" }, { item: 1, status: 1 } )
+    
+    上列條件但不想回傳_id (除_id外其餘皆不可在'包含某字段的條件中排除字段')
+    db.inventory.find( { status: "A" }, { item: 1, status: 1, _id: 0 } )
+    
+    回傳全部資料但唯獨排除特定字段
+    db.inventory.find( { status: "A" }, { status: 0, instock: 0 } )
+    
+    指定回傳的字段屬於嵌入字段一樣使用"點符號"表示
+    db.inventory.find(
+       { status: "A" },
+       { item: 1, status: 1, "size.uom": 1 }
+    )
+```
